@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#166534">
+<title>Daily Hustle Tracker</title>
+<style>
+:root{--green:#166534;--bg:#f3f7f4;--card:#fff;--text:#17231b;--muted:#65736a;--line:#dce7df;--red:#b42318}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text)}header{background:var(--green);color:#fff;padding:22px 16px 18px}header h1{margin:0;font-size:23px}header p{margin:5px 0 0;opacity:.9;font-size:13px}.wrap{max-width:850px;margin:auto;padding:14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}.card{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:15px;margin-bottom:12px;box-shadow:0 2px 8px #183a2510}.metric small,.muted{color:var(--muted)}.metric strong{display:block;font-size:22px;margin-top:5px}.metric span{font-size:12px;color:var(--muted)}h2{font-size:17px;margin:0 0 12px}.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px}input,select,textarea{width:100%;font:inherit;padding:11px;border:1px solid #cbd8ce;border-radius:10px;background:white;color:var(--text)}button{border:0;background:var(--green);color:white;padding:11px 14px;border-radius:10px;font:inherit;font-weight:650;cursor:pointer}button.secondary{background:#e7f1e9;color:var(--green)}button.danger{background:#fff0ee;color:var(--red)}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.notice{padding:10px 12px;background:#fff8df;border:1px solid #f0dfa0;border-radius:10px;font-size:13px}.pill{display:inline-block;background:#e7f1e9;color:var(--green);padding:4px 8px;border-radius:20px;font-size:12px}.list{display:flex;flex-direction:column;gap:8px}.item{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;justify-content:space-between;gap:12px;align-items:center}.item small{display:block;color:var(--muted)}.hidden{display:none}footer{text-align:center;color:var(--muted);font-size:12px;padding:15px}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px;border-bottom:1px solid var(--line);font-size:13px}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>Daily Hustle Tracker</h1><p>Income · expenses · bike service · purse cash · reminders</p><p id="clock"></p></div></header>
+<main class="wrap">
+<section class="grid">
+<div class="card metric"><small>Today's income</small><strong id="todayIncome">Rs 0</strong><span>All income sources</span></div>
+<div class="card metric"><small>Today's expenses</small><strong id="todayExpense">Rs 0</strong><span>Including meals and fuel</span></div>
+<div class="card metric"><small>Today's net</small><strong id="todayNet">Rs 0</strong><span>Income minus expenses</span></div>
+<div class="card metric"><small>Purse cash now</small><strong id="purseNow">Rs 3,350</strong><span>Last recorded balance</span></div>
+</section>
+
+<section class="card">
+<h2>Today's plan</h2>
+<div class="row">
+<div><label>Date</label><input id="planDate" type="date"></div>
+<div><label>Work starts</label><input id="workStart" type="time" value="18:45"></div>
+<div><label>Planned day off?</label><select id="dayOff"><option value="no">No, work day</option><option value="yes">Yes, day off</option></select></div>
+<div><label>Plan / notes</label><input id="planNotes" placeholder="e.g. Uber Eats shift"></div>
+</div>
+<p class="muted">Meal expenses are entered separately below as breakfast, lunch, dinner, and snacks/drinks.</p>
+<div class="actions"><button onclick="savePlan()">Save today's plan</button></div>
+</section>
+
+<section class="card">
+<h2>Bike kilometre & service</h2>
+<div class="row">
+<div><label>Today's starting km</label><input id="startKm" type="number" inputmode="decimal" value="32473"></div>
+<div><label>Today's ending km</label><input id="endKm" type="number" inputmode="decimal" placeholder="Enter after work"></div>
+<div><label>Current odometer km</label><input id="currentKm" type="number" inputmode="decimal" value="32473"></div>
+<div><label>Next service at km</label><input id="serviceKm" type="number" inputmode="decimal" value="33800"></div>
+</div>
+<div class="grid" style="margin-top:10px">
+<div class="metric"><small>Today's distance</small><strong id="distance">— km</strong></div>
+<div class="metric"><small>Km until service</small><strong id="untilService">1,327 km</strong></div>
+</div>
+<div id="serviceNotice" class="notice" style="margin-top:10px">Service due at 33,800 km. Enter the ending/current odometer after work.</div>
+<div class="actions"><button onclick="saveBike()">Save bike readings</button><button class="secondary" onclick="serviceDone()">Mark service completed</button></div>
+<p class="muted">When you mark a service completed, the next service target moves forward by 2,500 km from the current odometer.</p>
+</section>
+
+<section class="card">
+<h2>Purse cash — morning & after work</h2>
+<div class="row">
+<div><label>Cash before leaving for work (Rs)</label><input id="morningCash" type="number" inputmode="decimal" value="3350"></div>
+<div><label>Cash received today (Rs)</label><input id="cashIn" type="number" inputmode="decimal" value="0"></div>
+<div><label>Cash spent today (Rs)</label><input id="cashOut" type="number" inputmode="decimal" value="0"></div>
+<div><label>Cash after returning home (Rs)</label><input id="eveningCash" type="number" inputmode="decimal" placeholder="Enter after work"></div>
+</div>
+<p id="cashCheck" class="notice" style="margin-top:10px">Expected evening cash: Rs 3,350. Enter actual evening cash after work.</p>
+<div class="actions"><button onclick="savePurse()">Save purse cash</button></div>
+</section>
+
+<section class="card">
+<h2>Add income or expense</h2>
+<div class="row">
+<div><label>Entry type</label><select id="entryType" onchange="updateCategories()"><option value="expense">Expense</option><option value="income">Income</option></select></div>
+<div><label>Category</label><select id="category"></select></div>
+<div><label>Amount (Rs)</label><input id="amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+<div><label>Date</label><input id="entryDate" type="date"></div>
+<div><label>Payment method</label><select id="method"><option>Cash</option><option>Bank/card</option><option>Digital wallet</option><option>Other</option></select></div>
+<div><label>Note (optional)</label><input id="entryNote" placeholder="Details"></div>
+</div>
+<div class="actions"><button onclick="addEntry()">Add entry</button></div>
+</section>
+
+<section class="card">
+<h2>Monthly bills & reminders</h2>
+<div class="list" id="billsList"></div>
+<p class="muted">The app shows due dates when opened. Browser/app background notifications may require a native Android notification setup.</p>
+<div class="row">
+<div><label>Bill name</label><input id="newBillName" placeholder="e.g. phone bill"></div>
+<div><label>Amount (Rs)</label><input id="newBillAmount" type="number" inputmode="decimal" placeholder="0"></div>
+<div><label>Due day of month</label><input id="newBillDay" type="number" min="1" max="31" placeholder="e.g. 15"></div>
+</div>
+<div class="actions"><button class="secondary" onclick="addBill()">Add monthly bill</button></div>
+</section>
+
+<section class="card">
+<h2>Entries & reports</h2>
+<div class="row">
+<div><label>Report period</label><select id="reportPeriod" onchange="renderAll()"><option value="day">Today</option><option value="week">This week</option><option value="month">This month</option><option value="year">This year</option><option value="all">All records</option></select></div>
+</div>
+<div class="grid" style="margin-top:10px">
+<div class="metric"><small>Income</small><strong id="reportIncome">Rs 0</strong></div>
+<div class="metric"><small>Expenses</small><strong id="reportExpense">Rs 0</strong></div>
+<div class="metric"><small>Net</small><strong id="reportNet">Rs 0</strong></div>
+</div>
+<div id="entriesList" class="list" style="margin-top:12px"></div>
+<div class="actions"><button class="secondary" onclick="exportCSV()">Export CSV</button><button class="secondary" onclick="backup()">Backup data</button><label style="display:inline-flex;align-items:center;gap:8px;background:#e7f1e9;color:#166534;padding:10px 12px;border-radius:10px;cursor:pointer">Restore backup<input type="file" accept="application/json" style="display:none" onchange="restore(event)"></label></div>
+</section>
+<footer>Saved on this device only. Export a backup regularly; clearing app/browser data may erase records.</footer>
+</main>
+<script>
+const KEY='dailyHustleTrackerV2';
+const today=()=>new Date().toLocaleDateString('en-CA');
+const money=n=>'Rs '+(Number(n)||0).toLocaleString('en-LK',{maximumFractionDigits:2});
+const fresh=()=>({entries:[],plans:{},bike:{currentKm:32473,startKm:32473,endKm:null,serviceKm:33800},purse:{morningCash:3350,cashIn:0,cashOut:0,eveningCash:null},bills:[{name:'Boarding / rent',amount:9000,day:11,paidMonth:''},{name:'Bike finance',amount:25500,day:20,paidMonth:''}]});
+let data;try{data=JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){data=fresh()}
+function persist(){localStorage.setItem(KEY,JSON.stringify(data))}
+function setVal(id,v){document.getElementById(id).value=v??''}
+function val(id){return document.getElementById(id).value}
+function num(id){return Number(val(id)||0)}
+function updateCategories(){let t=val('entryType');let cats=t==='income'?['Uber Eats','YouTube','Facebook','Other online work','Other income']:['Breakfast','Lunch','Dinner','Tea / snacks / drinks','Petrol / fuel','Bike maintenance / service','Bike finance','Boarding / rent','Phone / data','Parking','Delivery expenses','Household','Personal','Medical','Utilities','Other expense'];document.getElementById('category').innerHTML=cats.map(x=>`<option>${x}</option>`).join('')}
+function init(){let d=today();setVal('planDate',d);setVal('entryDate',d);setVal('startKm',data.bike.startKm??32473);setVal('currentKm',data.bike.currentKm??32473);setVal('endKm',data.bike.endKm);setVal('serviceKm',data.bike.serviceKm??33800);setVal('morningCash',data.purse.morningCash??3350);setVal('cashIn',data.purse.cashIn??0);setVal('cashOut',data.purse.cashOut??0);setVal('eveningCash',data.purse.eveningCash);let p=data.plans[d];if(p){setVal('workStart',p.workStart||'18:45');setVal('dayOff',p.dayOff||'no');setVal('planNotes',p.notes||'')}updateCategories();renderAll();clock();setInterval(clock,1000)}
+function clock(){document.getElementById('clock').textContent=new Date().toLocaleString()}
+function savePlan(){let d=val('planDate');data.plans[d]={workStart:val('workStart'),dayOff:val('dayOff'),notes:val('planNotes')};persist();alert('Today plan saved.')}
+function saveBike(){data.bike={startKm:num('startKm'),endKm:val('endKm')===''?null:num('endKm'),currentKm:val('endKm')===''?num('currentKm'):num('endKm'),serviceKm:num('serviceKm')||33800};persist();renderAll();alert('Bike readings saved.')}
+function serviceDone(){let current=num('endKm')||num('currentKm');if(!current){alert('Enter current odometer km first.');return}data.bike.currentKm=current;data.bike.startKm=num('startKm');data.bike.endKm=val('endKm')===''?null:num('endKm');data.bike.serviceKm=current+2500;persist();setVal('serviceKm',data.bike.serviceKm);renderAll();alert('Service marked completed. Next service target set to '+data.bike.serviceKm.toLocaleString()+' km.')}
+function savePurse(){data.purse={morningCash:num('morningCash'),cashIn:num('cashIn'),cashOut:num('cashOut'),eveningCash:val('eveningCash')===''?null:num('eveningCash')};persist();renderAll();alert('Purse cash saved.')}
+function addEntry(){let amount=num('amount');if(amount<=0){alert('Enter an amount greater than zero.');return}data.entries.push({id:Date.now(),type:val('entryType'),category:val('category'),amount,date:val('entryDate')||today(),method:val('method'),note:val('entryNote')});persist();setVal('amount','');setVal('entryNote','');renderAll();alert('Entry saved.')}
+function addBill(){let name=val('newBillName').trim(),amount=num('newBillAmount'),day=num('newBillDay');if(!name||amount<=0||day<1||day>31){alert('Enter bill name, amount and due day (1–31).');return}data.bills.push({name,amount,day,paidMonth:''});persist();setVal('newBillName','');setVal('newBillAmount','');setVal('newBillDay','');renderAll()}
+function paid(i){let b=data.bills[i],d=new Date(),month=d.toISOString().slice(0,7);if(!confirm('Mark '+b.name+' ('+money(b.amount)+') as paid for '+month+'?'))return;b.paidMonth=month;data.entries.push({id:Date.now(),type:'expense',category:b.name,amount:b.amount,date:today(),method:'Cash',note:'Monthly bill paid'});persist();renderAll()}
+function renderBills(){let month=today().slice(0,7),day=Number(today().slice(8,10));document.getElementById('billsList').innerHTML=data.bills.map((b,i)=>{let isPaid=b.paidMonth===month;let due=day===b.day?'Due today':day>b.day&&!isPaid?'Overdue':`Due on ${b.day}${b.day===1?'st':b.day===2?'nd':b.day===3?'rd':'th'}`;return `<div class="item"><div><strong>${esc(b.name)}</strong><small>${money(b.amount)} · ${due}</small><span class="pill">${isPaid?'Paid this month':'Reminder'}</span></div><button class="${isPaid?'secondary':''}" onclick="paid(${i})" ${isPaid?'disabled':''}>${isPaid?'Paid':'Mark paid'}</button></div>`}).join('')}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function periodMatch(d,p){let now=new Date(),x=new Date(d+'T12:00:00');if(p==='all')return true;if(p==='day')return d===today();if(p==='month')return d.slice(0,7)===today().slice(0,7);if(p==='year')return d.slice(0,4)===today().slice(0,4);let start=new Date(now);start.setDate(now.getDate()-((now.getDay()+6)%7));start.setHours(0,0,0,0);return x>=start&&x<=now}
+function renderAll(){let dayEntries=data.entries.filter(e=>e.date===today()),inc=dayEntries.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount,0),exp=dayEntries.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0);document.getElementById('todayIncome').textContent=money(inc);document.getElementById('todayExpense').textContent=money(exp);document.getElementById('todayNet').textContent=money(inc-exp);document.getElementById('purseNow').textContent=money(data.purse.eveningCash??data.purse.morningCash??3350);
+let b=data.bike,cur=Number(b.endKm??b.currentKm??32473),target=Number(b.serviceKm??33800),remaining=target-cur;document.getElementById('distance').textContent=b.endKm==null?'— km':Math.max(0,Number(b.endKm)-Number(b.startKm))+' km';document.getElementById('untilService').textContent=(remaining<=0?'SERVICE DUE':remaining.toLocaleString()+' km');document.getElementById('serviceNotice').textContent=remaining<=0?'Service due now. Please service the bike and update the next target.':`Next service at ${target.toLocaleString()} km. ${remaining.toLocaleString()} km remaining.`;let p=data.purse,expected=Number(p.morningCash||0)+Number(p.cashIn||0)-Number(p.cashOut||0);document.getElementById('cashCheck').textContent=p.eveningCash==null?`Expected evening cash: ${money(expected)}. Enter actual evening cash after work.`:`Expected evening cash: ${money(expected)}. Actual evening cash: ${money(p.eveningCash)}. Difference: ${money(Number(p.eveningCash)-expected)}.`;
+renderBills();let period=val('reportPeriod')||'day',filtered=data.entries.filter(e=>periodMatch(e.date,period)),ri=filtered.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount,0),re=filtered.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0);document.getElementById('reportIncome').textContent=money(ri);document.getElementById('reportExpense').textContent=money(re);document.getElementById('reportNet').textContent=money(ri-re);document.getElementById('entriesList').innerHTML=filtered.slice().reverse().slice(0,100).map(e=>`<div class="item"><div><strong>${esc(e.category)} · ${money(e.amount)}</strong><small>${esc(e.date)} · ${esc(e.method)}${e.note?' · '+esc(e.note):''}</small></div><span class="pill">${e.type}</span></div>`).join('')||'<p class="muted">No entries for this period yet.</p>'}
+function exportCSV(){let rows=[['date','type','category','amount','method','note'],...data.entries.map(e=>[e.date,e.type,e.category,e.amount,e.method,e.note||''])];let csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');download('daily-hustle-report.csv',csv,'text/csv')}
+function backup(){download('daily-hustle-backup.json',JSON.stringify(data,null,2),'application/json')}
+function download(name,content,type){let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
+function restore(ev){let f=ev.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let x=JSON.parse(r.result);if(!x.entries||!x.bike||!x.bills)throw Error();data=x;persist();init();alert('Backup restored.')}catch(e){alert('Invalid backup file.')}};r.readAsText(f)}
+init();
+</script>
+</body></html>

@@ -1,0 +1,6 @@
+{
+  "appId": "com.prabath.dailyhustle",
+  "appName": "Daily Hustle Tracker",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
