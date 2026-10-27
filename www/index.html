@@ -151,3 +151,283 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:15px}
 </section>
 <footer>Offline-first. Data stays on this device. Backup regularly; uninstalling or clearing app data can erase records.</footer>
 </main>
+<script>
+const KEY='dailyHustleTrackerV2';
+const today=()=>new Date().toISOString().slice(0,10);
+const money=n=>'Rs '+Number(n||0).toLocaleString('en-LK',{minimumFractionDigits:2,maximumFractionDigits:2});
+const defaults={
+ entries:[],
+ bike:{startKm:32473,endKm:null,currentKm:32473,serviceKm:33800},
+ purse:{morningCash:3350,cashIn:0,cashOut:0,eveningCash:null},
+ bills:[
+  {name:'Boarding / rent',amount:9000,day:11,paidMonth:''},
+  {name:'Bike finance',amount:25500,day:20,paidMonth:''}
+ ],
+ plans:{},
+ targets:{daily:10,weekly:60},
+ deliveries:{}
+};
+function load(){
+ try{
+  const old=JSON.parse(localStorage.getItem(KEY));
+  return old?{...defaults,...old,
+   bike:{...defaults.bike,...old.bike},
+   purse:{...defaults.purse,...old.purse},
+   targets:{...defaults.targets,...old.targets},
+   bills:old.bills||defaults.bills,
+   entries:old.entries||[],
+   plans:old.plans||{},
+   deliveries:old.deliveries||{}
+  }:structuredClone(defaults);
+ }catch(e){return structuredClone(defaults)}
+}
+let data=load();
+function persist(){localStorage.setItem(KEY,JSON.stringify(data))}
+function setVal(id,v){document.getElementById(id).value=v??''}
+function val(id){return document.getElementById(id).value}
+function num(id){return Number(val(id)||0)}
+
+function updateCategories(){
+ let t=val('entryType');
+ let cats=t==='income'
+ ?['Uber Eats','YouTube','Facebook','Other online work','Other income']
+ :['Breakfast','Lunch','Dinner','Tea / snacks / drinks','Petrol / fuel','Bike maintenance / service','Bike finance','Boarding / rent','Phone / data','Parking','Delivery expenses','Household','Personal','Medical','Utilities','Other expense'];
+ document.getElementById('category').innerHTML=cats.map(x=>`<option>${x}</option>`).join('');
+}
+
+function init(){
+ let d=today();
+ setVal('planDate',d);
+ setVal('entryDate',d);
+ setVal('startKm',data.bike.startKm??32473);
+ setVal('currentKm',data.bike.currentKm??32473);
+ setVal('endKm',data.bike.endKm);
+ setVal('serviceKm',data.bike.serviceKm??33800);
+ setVal('morningCash',data.purse.morningCash??3350);
+ setVal('cashIn',data.purse.cashIn??0);
+ setVal('cashOut',data.purse.cashOut??0);
+ setVal('eveningCash',data.purse.eveningCash);
+ setVal('dailyTarget',data.targets.daily??10);
+ setVal('weeklyTarget',data.targets.weekly??60);
+ setVal('deliveriesToday',data.deliveries[d]??0);
+ let p=data.plans[d];
+ if(p){
+  setVal('workStart',p.workStart||'18:45');
+  setVal('dayOff',p.dayOff||'no');
+  setVal('planNotes',p.notes||'');
+ }
+ updateCategories();
+ renderAll();
+ clock();
+ setInterval(clock,1000);
+ forecast();
+}
+function clock(){
+ document.getElementById('clock').textContent=new Date().toLocaleString();
+}
+function savePlan(){
+ let d=val('planDate');
+ data.plans[d]={workStart:val('workStart'),dayOff:val('dayOff'),notes:val('planNotes')};
+ data.targets={daily:num('dailyTarget'),weekly:num('weeklyTarget')};
+ persist();renderAll();alert('Plan and targets saved.');
+}
+function saveDeliveries(){
+ let d=val('planDate');
+ data.deliveries[d]=Math.max(0,Math.floor(num('deliveriesToday')));
+ data.targets={daily:num('dailyTarget'),weekly:num('weeklyTarget')};
+ persist();renderAll();alert('Delivery count saved.');
+}
+function saveBike(){
+ data.bike={
+  startKm:num('startKm'),
+  endKm:val('endKm')===''?null:num('endKm'),
+  currentKm:val('endKm')===''?num('currentKm'):num('endKm'),
+  serviceKm:num('serviceKm')||33800
+ };
+ persist();renderAll();alert('Bike readings saved.');
+}
+function serviceDone(){
+ let current=num('endKm')||num('currentKm');
+ if(!current){alert('Enter current odometer km first.');return}
+ data.bike.currentKm=current;
+ data.bike.startKm=num('startKm');
+ data.bike.endKm=val('endKm')===''?null:num('endKm');
+ data.bike.serviceKm=current+2500;
+ persist();setVal('serviceKm',data.bike.serviceKm);renderAll();
+ alert('Service marked completed. Next service target: '+data.bike.serviceKm.toLocaleString()+' km.');
+}
+function savePurse(){
+ data.purse={
+  morningCash:num('morningCash'),
+  cashIn:num('cashIn'),
+  cashOut:num('cashOut'),
+  eveningCash:val('eveningCash')===''?null:num('eveningCash')
+ };
+ persist();renderAll();alert('Purse cash saved.');
+}
+function addEntry(){
+ let amount=num('amount');
+ if(amount<=0){alert('Enter an amount greater than zero.');return}
+ data.entries.push({
+  id:Date.now(),type:val('entryType'),category:val('category'),
+  amount,date:val('entryDate')||today(),method:val('method'),
+  note:val('entryNote')
+ });
+ persist();setVal('amount','');setVal('entryNote','');renderAll();
+ alert('Entry saved.');
+}
+function editEntry(id){
+ let e=data.entries.find(x=>x.id===id);if(!e)return;
+ let a=prompt('Amount (Rs):',e.amount);if(a===null)return;
+ let amount=Number(a);
+ if(!Number.isFinite(amount)||amount<=0){alert('Amount must be above zero.');return}
+ let date=prompt('Date (YYYY-MM-DD):',e.date);if(date===null)return;
+ let note=prompt('Note:',e.note||'');if(note===null)return;
+ e.amount=amount;e.date=date;e.note=note;
+ persist();renderAll();
+}
+function deleteEntry(id){
+ if(!confirm('Delete this entry permanently?'))return;
+ data.entries=data.entries.filter(e=>e.id!==id);
+ persist();renderAll();
+}
+  function addBill(){
+ let name=val('newBillName').trim(),amount=num('newBillAmount'),day=num('newBillDay');
+ if(!name||amount<=0||day<1||day>31){alert('Enter a bill name, valid amount and due day (1–31).');return}
+ data.bills.push({name,amount,day,paidMonth:''});
+ persist();setVal('newBillName','');setVal('newBillAmount','');setVal('newBillDay','');renderAll();
+}
+function payBill(i){
+ let b=data.bills[i];if(!b)return;
+ b.paidMonth=val('planDate').slice(0,7);
+ persist();renderAll();
+}
+function unpayBill(i){
+ if(!data.bills[i])return;
+ data.bills[i].paidMonth='';
+ persist();renderAll();
+}
+function removeBill(i){
+ if(!confirm('Delete this bill?'))return;
+ data.bills.splice(i,1);persist();renderAll();
+}
+function forecast(){
+ let total=(num('forecastFood')+num('forecastOther'))*num('restDays');
+ document.getElementById('forecastResult').textContent=
+ 'Estimated expenses for '+num('restDays')+' rest day(s): '+money(total);
+}
+function sameWeek(a,b){
+ let da=new Date(a+'T12:00:00'),db=new Date(b+'T12:00:00');
+ let start=d=>{let x=new Date(d);x.setDate(x.getDate()-((x.getDay()+6)%7));return x.toISOString().slice(0,10)};
+ return start(da)===start(db);
+}
+function inPeriod(date,period){
+ let now=val('planDate')||today();
+ if(period==='all')return true;
+ if(period==='day')return date===now;
+ if(period==='week')return sameWeek(date,now);
+ if(period==='month')return date.slice(0,7)===now.slice(0,7);
+ if(period==='year')return date.slice(0,4)===now.slice(0,4);
+ return false;
+}
+function renderAll(){
+ let d=val('planDate')||today();
+ let entries=data.entries||[];
+ let sum=(arr,type)=>arr.filter(e=>e.type===type).reduce((s,e)=>s+Number(e.amount||0),0);
+ let todays=entries.filter(e=>e.date===d);
+ let ti=sum(todays,'income'),te=sum(todays,'expense');
+ document.getElementById('todayIncome').textContent=money(ti);
+ document.getElementById('todayExpense').textContent=money(te);
+ document.getElementById('todayNet').textContent=money(ti-te);
+ let p=data.purse||{};
+ let balance=p.eveningCash!==null&&p.eveningCash!==undefined?p.eveningCash:
+  Number(p.morningCash||0)+Number(p.cashIn||0)-Number(p.cashOut||0);
+ document.getElementById('purseNow').textContent=money(balance);
+ document.getElementById('todayDeliveries').textContent=(data.deliveries[d]||0)+' / '+(data.targets.daily||0);
+ let weekly=Object.keys(data.deliveries).filter(x=>sameWeek(x,d)).reduce((s,x)=>s+Number(data.deliveries[x]||0),0);
+ document.getElementById('weekDeliveries').textContent=weekly+' / '+(data.targets.weekly||0);
+ document.getElementById('weekTargetText').textContent=weekly>=(data.targets.weekly||0)?'Weekly target reached':'Weekly progress';
+ let b=data.bike||{};
+ let distance=b.endKm!==null&&b.endKm!==undefined?Number(b.endKm)-Number(b.startKm):null;
+ document.getElementById('distance').textContent=distance===null?'— km':distance.toLocaleString()+' km';
+ let left=Number(b.serviceKm||0)-Number(b.currentKm||0);
+ document.getElementById('untilService').textContent=left.toLocaleString()+' km';
+ document.getElementById('serviceNotice').textContent=left<=0?'Service due now — please check your bike.':'Next service target: '+Number(b.serviceKm||0).toLocaleString()+' km.';
+ document.getElementById('cashCheck').textContent='Expected cash: '+money(Number(p.morningCash||0)+Number(p.cashIn||0)-Number(p.cashOut||0))+(p.eveningCash!==null&&p.eveningCash!==undefined?' · Actual evening cash: '+money(p.eveningCash):' · Enter evening cash after work.');
+ renderBills(d);
+ let period=val('reportPeriod')||'day';
+ let filtered=entries.filter(e=>inPeriod(e.date,period));
+ let ri=sum(filtered,'income'),re=sum(filtered,'expense');
+ document.getElementById('reportIncome').textContent=money(ri);
+ document.getElementById('reportExpense').textContent=money(re);
+ document.getElementById('reportNet').textContent=money(ri-re);
+ let list=document.getElementById('entriesList');
+ if(!filtered.length){list.innerHTML='<p class="muted">No entries for this period yet.</p>'}
+ else{
+  list.innerHTML=filtered.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id).map(e=>`
+   <div class="item"><div><strong>${esc(e.category)}</strong> <span class="pill">${esc(e.type)}</span>
+   <small>${esc(e.date)} · ${esc(e.method||'Cash')}${e.note?' · '+esc(e.note):''}</small>
+   <strong>${money(e.amount)}</strong>
+   <div class="actions"><button class="secondary" onclick="editEntry(${e.id})">Edit</button><button class="danger" onclick="deleteEntry(${e.id})">Delete</button></div>
+   </div></div>`).join('');
+ }
+ forecast();
+}
+function renderBills(d){
+ let month=d.slice(0,7);
+ document.getElementById('billsList').innerHTML=data.bills.map((b,i)=>{
+  let paid=b.paidMonth===month;
+  return `<div class="item"><div><strong>${esc(b.name)}</strong><small>${money(b.amount)} · Due day ${b.day}</small><span class="pill">${paid?'Paid this month':'Not marked paid'}</span>
+  <div class="actions">${paid?`<button class="secondary" onclick="unpayBill(${i})">Undo paid</button>`:`<button onclick="payBill(${i})">Mark paid</button>`}<button class="danger" onclick="removeBill(${i})">Delete</button></div></div></div>`;
+ }).join('');
+}
+function esc(s){
+ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function exportCSV(){
+ let rows=[['Date','Type','Category','Amount','Method','Note'],...data.entries.map(e=>[e.date,e.type,e.category,e.amount,e.method,e.note])];
+ let csv=rows.map(r=>r.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+ let a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'}));a.download='daily-hustle-entries.csv';a.click();URL.revokeObjectURL(a.href);
+}
+function backup(){
+ let blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+ let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='daily-hustle-backup.json';a.click();URL.revokeObjectURL(a.href);
+}
+function restore(event){
+ let file=event.target.files[0];if(!file)return;
+ let reader=new FileReader();
+ reader.onload=()=>{
+  try{
+   let x=JSON.parse(reader.result);
+   if(!Array.isArray(x.entries)||!Array.isArray(x.bills))throw Error('Invalid backup');
+   if(!confirm('Replace current data with this backup?'))return;
+   data={...defaults,...x};
+   persist();init();alert('Backup restored.');
+  }catch(e){alert('Could not restore. Please select a valid Daily Hustle backup file.')}
+ };
+ reader.readAsText(file);event.target.value='';
+}
+document.getElementById('planDate').addEventListener('change',()=>{
+ let d=val('planDate'),p=data.plans[d]||{};
+ setVal('workStart',p.workStart||'18:45');
+ setVal('dayOff',p.dayOff||'no');
+ setVal('planNotes',p.notes||'');
+ setVal('deliveriesToday',data.deliveries[d]||0);
+ setVal('entryDate',d);
+ renderAll();
+});
+document.getElementById('endKm').addEventListener('input',()=>{
+ let end=val('endKm');
+ if(end!=='')setVal('currentKm',end);
+ let distance=end===''?null:Number(end)-num('startKm');
+ document.getElementById('distance').textContent=distance===null?'— km':distance.toLocaleString()+' km';
+});
+document.getElementById('currentKm').addEventListener('input',renderAll);
+document.getElementById('serviceKm').addEventListener('input',renderAll);
+document.getElementById('forecastFood').addEventListener('input',forecast);
+document.getElementById('forecastOther').addEventListener('input',forecast);
+document.getElementById('restDays').addEventListener('input',forecast);
+init();
+</script>
+</body>
+</html>
