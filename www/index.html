@@ -340,9 +340,23 @@ function renderAll(){
  document.getElementById('todayExpense').textContent=money(te);
  document.getElementById('todayNet').textContent=money(ti-te);
  let p=data.purse||{};
- let balance=p.eveningCash!==null&&p.eveningCash!==undefined?p.eveningCash:
-  Number(p.morningCash||0)+Number(p.cashIn||0)-Number(p.cashOut||0);
- document.getElementById('purseNow').textContent=money(balance);
+
+let cashIncome=data.entries
+  .filter(e=>e.type==='income' && e.method==='Cash')
+  .reduce((s,e)=>s+Number(e.amount||0),0);
+
+let cashExpenses=data.entries
+  .filter(e=>e.type==='expense' && e.method==='Cash')
+  .reduce((s,e)=>s+Number(e.amount||0),0);
+
+let balance=
+  Number(p.morningCash||0)
+  +Number(p.cashIn||0)
+  -Number(p.cashOut||0)
+  +cashIncome
+  -cashExpenses;
+
+document.getElementById('purseNow').textContent=money(balance);
  document.getElementById('todayDeliveries').textContent=(data.deliveries[d]||0)+' / '+(data.targets.daily||0);
  let weekly=Object.keys(data.deliveries).filter(x=>sameWeek(x,d)).reduce((s,x)=>s+Number(data.deliveries[x]||0),0);
  document.getElementById('weekDeliveries').textContent=weekly+' / '+(data.targets.weekly||0);
