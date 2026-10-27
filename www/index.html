@@ -367,7 +367,11 @@ document.getElementById('purseNow').textContent=money(balance);
  let left=Number(b.serviceKm||0)-Number(b.currentKm||0);
  document.getElementById('untilService').textContent=left.toLocaleString()+' km';
  document.getElementById('serviceNotice').textContent=left<=0?'Service due now — please check your bike.':'Next service target: '+Number(b.serviceKm||0).toLocaleString()+' km.';
- document.getElementById('cashCheck').textContent='Expected cash: '+money(Number(p.morningCash||0)+Number(p.cashIn||0)-Number(p.cashOut||0))+(p.eveningCash!==null&&p.eveningCash!==undefined?' · Actual evening cash: '+money(p.eveningCash):' · Enter evening cash after work.');
+ document.getElementById('cashCheck').textContent=
+  'Expected cash: '+money(balance)+
+  (p.eveningCash!==null && p.eveningCash!==undefined
+    ? ' · Actual evening cash: '+money(p.eveningCash)
+    : ' · Enter evening cash after work.');
  renderBills(d);
  let period=val('reportPeriod')||'day';
  let filtered=entries.filter(e=>inPeriod(e.date,period));
