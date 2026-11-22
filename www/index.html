@@ -620,5 +620,253 @@ const originalRenderAll=renderAll;
 renderAll=function(){originalRenderAll();let d=val('planDate')||today();renderBonus(d);renderBalanceExtras();let p=val('reportPeriod')||'day';renderExpenseBreakdown((data.entries||[]).filter(e=>inPeriod(e.date,p)))};
 </script>
 
+/* ===== DAILY KM AUTO ROLLOVER + PARTIAL BILL PAYMENTS ===== */
+
+function getBikeReadingForDate(date) {
+  const readings = data.bike.dailyReadings || {};
+  const saved = readings[date];
+
+  if (saved) return saved;
+
+  const previousDates = Object.keys(readings)
+    .filter(d => d < date && readings[d].endKm !== null && readings[d].endKm !== undefined)
+    .sort();
+
+  const previousEnd = previousDates.length
+    ? Number(readings[previousDates[previousDates.length - 1]].endKm)
+    : Number(data.bike.currentKm || data.bike.startKm || 0);
+
+  return { startKm: previousEnd, endKm: null };
+}
+
+function syncBikeForDate() {
+  const date = val('planDate') || today();
+  const reading = getBikeReadingForDate(date);
+
+  setVal('startKm', reading.startKm);
+  setVal('endKm', reading.endKm);
+  setVal('currentKm', reading.endKm ?? reading.startKm);
+}
+
+const oldRenderAllWithBike = renderAll;
+renderAll = function() {
+  syncBikeForDate();
+  oldRenderAllWithBike();
+};
+
+saveBike = function() {
+  const date = val('planDate') || today();
+  const start = num('startKm');
+  const end = val('endKm') === '' ? null : num('endKm');
+
+  if (end !== null && end < start) {
+    alert('Ending km cannot be lower than starting km.');
+    return;
+  }
+
+  data.bike.dailyReadings = data.bike.dailyReadings || {};
+  data.bike.dailyReadings[date] = {
+    startKm: start,
+    endKm: end
+  };
+
+  data.bike.startKm = start;
+  data.bike.endKm = end;
+  data.bike.currentKm = end === null ? start : end;
+  data.bike.serviceKm = num('serviceKm') || 33800;
+  data.bike.lastDate = date;
+
+  persist();
+  renderAll();
+  alert('Bike readings saved. The ending km will become the next day's starting km.');
+};
+
+/* Match bill payments to expense entries.
+   This keeps reports and cash/bank balances in sync. */
+function billPaidAmount(bill, month) {
+  const matching = (data.entries || []).filter(e =>
+    e.type === 'expense' &&
+    String(e.category).trim().toLowerCase() ===
+      String(bill.name).trim().toLowerCase() &&
+    String(e.date).slice(0, 7) === month
+  );
+
+  const entryTotal = matching.reduce(
+    (sum, e) => sum + Number(e.amount || 0), 0
+  );
+
+  // Support old records that used the previous Mark paid button.
+  if (matching.length === 0 && bill.paidMonth === month) {
+    return Number(bill.amount || 0);
+  }
+
+  return entryTotal;
+}
+
+payBill = function(i) {
+  const bill = data.bills[i];
+  if (!bill) return;
+
+  const date = val('planDate') || today();
+  const month = date.slice(0, 7);
+  const paid = billPaidAmount(bill, month);
+  const remaining = Math.max(0, Number(bill.amount || 0) - paid);
+
+  if (remaining <= 0) {
+    alert('This bill is already fully paid.');
+    return;
+  }
+
+  const raw = prompt(
+    'Payment amount for ' + bill.name +
+    '\nRemaining: ' + money(remaining),
+    String(remaining)
+  );
+
+  if (raw === null) return;
+
+  const amount = Number(raw);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > remaining) {
+    alert('Enter a valid amount up to ' + money(remaining));
+    return;
+  }
+
+  const method = prompt(
+    'Payment method: Cash, Bank/card, Digital wallet, Other',
+    'Cash'
+  );
+
+  if (method === null) return;
+
+  data.entries.push({
+    id: Date.now(),
+    type: 'expense',
+    category: bill.name,
+    amount,
+    date,
+    method: method.trim(),
+    note: 'Monthly bill payment'
+  });
+
+  persist();
+  renderAll();
+  alert('Payment saved. Remaining: ' + money(remaining - amount));
+};
+
+unpayBill = function(i) {
+  const bill = data.bills[i];
+  if (!bill) return;
+
+  const month = (val('planDate') || today()).slice(0, 7);
+
+  const matches = (data.entries || []).filter(e =>
+    e.type === 'expense' &&
+    String(e.category).trim().toLowerCase() ===
+      String(bill.name).trim().toLowerCase() &&
+    String(e.date).slice(0, 7) === month
+  );
+
+  if (!matches.length) {
+    bill.paidMonth = '';
+    persist();
+    renderAll();
+    return;
+  }
+
+  const last = matches[matches.length - 1];
+
+  if (!confirm('Delete the latest payment of ' + money(last.amount) + '?')) {
+    return;
+  }
+
+  data.entries = data.entries.filter(e => e.id !== last.id);
+  persist();
+  renderAll();
+};
+
+renderBills = function(d) {
+  const month = d.slice(0, 7);
+
+  const total = data.bills.reduce(
+    (sum, b) => sum + Number(b.amount || 0), 0
+  );
+
+  const paid = data.bills.reduce(
+    (sum, b) => sum + Math.min(
+      Number(b.amount || 0),
+      billPaidAmount(b, month)
+    ), 0
+  );
+
+  const remainingTotal = Math.max(0, total - paid);
+
+  const summary = `
+    <div class="grid" style="margin-bottom:10px">
+      <div class="metric">
+        <small>Monthly commitments</small>
+        <strong>${money(total)}</strong>
+      </div>
+      <div class="metric">
+        <small>Paid this month</small>
+        <strong>${money(paid)}</strong>
+      </div>
+      <div class="metric">
+        <small>Still to pay</small>
+        <strong>${money(remainingTotal)}</strong>
+      </div>
+    </div>`;
+
+  document.getElementById('billsList').innerHTML =
+    summary + data.bills.map((b, i) => {
+      const billPaid = billPaidAmount(b, month);
+      const remaining = Math.max(0, Number(b.amount || 0) - billPaid);
+      const fullyPaid = remaining <= 0;
+
+      return `
+        <div class="item">
+          <div>
+            <strong>${esc(b.name)}</strong>
+            <small>${money(b.amount)} · Due day ${b.day}</small>
+            <small>Paid: ${money(billPaid)}</small>
+            <small><strong>Remaining: ${money(remaining)}</strong></small>
+            <span class="pill">
+              ${fullyPaid ? 'Fully paid' : billPaid > 0 ? 'Part paid' : 'Not paid'}
+            </span>
+            <div class="actions">
+              ${fullyPaid
+                ? `<button class="secondary" onclick="unpayBill(${i})">Undo payment</button>`
+                : `<button onclick="payBill(${i})">Add payment</button>`
+              }
+              <button class="danger" onclick="removeBill(${i})">Delete</button>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+};
+
+/* Add monthly bill names to the expense category list. */
+const oldUpdateCategories = updateCategories;
+updateCategories = function() {
+  oldUpdateCategories();
+
+  if (val('entryType') === 'expense') {
+    const select = document.getElementById('category');
+    const existing = Array.from(select.options).map(o => o.value);
+
+    (data.bills || []).forEach(b => {
+      if (!existing.includes(b.name)) {
+        select.add(new Option(b.name, b.name));
+      }
+    });
+  }
+};
+
+/* Refresh bike readings when a different date is selected. */
+document.getElementById('planDate').addEventListener('change', syncBikeForDate);
+
+/* Initialize the correct reading for today's selected date. */
+syncBikeForDate();
+renderAll();
+
 </body>
 </html>
